@@ -280,4 +280,239 @@
       <button type="button" class="btn-old" id="btnOld">पुराने बिल</button>
       <button type="button" class="btn-due" id="btnDue">बाकी बिल</button>
       <button type="button" class="btn-calc" id="btnCalc">कैलकुलेटर</button>
-      <button type="button
+      <button type="button" class="btn-new" id="btnNew">नया बिल</button>
+    </div>
+
+    <div id="calcPanel" class="calc-panel no-print">
+      <div class="calc-layout">
+        <div class="calc-box">
+          <input type="text" id="calcScreen" class="calc-screen" readonly placeholder="0" />
+          <div class="calc-grid" id="calcButtons">
+            <button type="button" class="clr" data-val="C">C</button>
+            <button type="button" class="op" data-val="BACK">⌫</button>
+            <button type="button" class="op" data-val="%">%</button>
+            <button type="button" class="op" data-val="/">÷</button>
+            <button type="button" data-val="7">7</button>
+            <button type="button" data-val="8">8</button>
+            <button type="button" data-val="9">9</button>
+            <button type="button" class="op" data-val="*">×</button>
+            <button type="button" data-val="4">4</button>
+            <button type="button" data-val="5">5</button>
+            <button type="button" data-val="6">6</button>
+            <button type="button" class="op" data-val="-">−</button>
+            <button type="button" data-val="1">1</button>
+            <button type="button" data-val="2">2</button>
+            <button type="button" data-val="3">3</button>
+            <button type="button" class="op" data-val="+">+</button>
+            <button type="button" data-val="0">0</button>
+            <button type="button" data-val="00">00</button>
+            <button type="button" data-val=".">.</button>
+            <button type="button" class="eq" data-val="=">=</button>
+          </div>
+        </div>
+
+        <div class="time-box">
+          <h4>घड़ी / खेत समय व रुपये गणना</h4>
+
+          <div class="time-sub">1. शुरू से अंत समय निकालें:</div>
+          <div class="row">
+            <input type="time" id="startClock" />
+            <input type="time" id="endClock" />
+          </div>
+
+          <div class="time-sub">2. घंटे और मिनट जोड़ें:</div>
+          <div class="row">
+            <input type="number" id="addHrs" placeholder="घंटे" min="0" step="any" />
+            <input type="number" id="addMins" placeholder="मिनट" min="0" step="any" />
+            <button type="button" class="btn-add" id="btnAddTime">समय जोड़ें</button>
+            <button type="button" class="btn-new" id="btnResetTime">रीसेट</button>
+          </div>
+
+          <div class="time-sub">3. काम का नाम और दर (₹):</div>
+          <div class="row">
+            <input type="text" id="timeWorkName" placeholder="काम का नाम (जैसे ट्रैक्टर जुताई)" />
+            <input type="number" id="timeRate" placeholder="दर (₹)" min="0" step="any" />
+            <select id="timeRateUnit">
+              <option value="घंटा">प्रति घंटा</option>
+              <option value="मिनट">प्रति मिनट</option>
+            </select>
+          </div>
+
+          <div class="time-result" id="timeSummaryText">
+            कुल समय: 0 घंटा 0 मिनट (0 घंटे)
+          </div>
+          <div class="time-money" id="timeMoneyText">
+            अनुमानित राशि: ₹0
+          </div>
+
+          <div class="row" style="margin-top: 8px;">
+            <button type="button" class="btn-add" id="btnTimeToBill">सीधे बिल में जोड़ें</button>
+            <button type="button" id="btnApplyHrs">मात्रा में 'घंटे' डालें</button>
+            <button type="button" class="btn-old" id="btnApplyMins">मात्रा में 'मिनट' डालें</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="recordsPanel" class="records-panel no-print">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; flex-wrap:wrap; gap:8px;">
+        <h3 id="recordsHeading" style="margin:0;">पुराने बिल</h3>
+        <button type="button" style="background:#64748b; padding:6px 10px;" id="btnCloseRecords">बंद करें</button>
+      </div>
+      <div id="recordsList"></div>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      var items = [];
+      var totalMinutes = 0;
+
+      function $(id) {
+        return document.getElementById(id);
+      }
+
+      function safeReadStorage(key, fallback) {
+        try {
+          var raw = localStorage.getItem(key);
+          return raw ? JSON.parse(raw) : fallback;
+        } catch (e) {
+          return fallback;
+        }
+      }
+
+      function safeWriteStorage(key, value) {
+        try {
+          localStorage.setItem(key, JSON.stringify(value));
+        } catch (e) {}
+      }
+
+      function setTodayDate() {
+        var now = new Date();
+        var y = now.getFullYear();
+        var m = String(now.getMonth() + 1).padStart(2, "0");
+        var d = String(now.getDate()).padStart(2, "0");
+        $("billDate").value = y + "-" + m + "-" + d;
+      }
+
+      function loadShop() {
+        var shop = safeReadStorage("shopHeaderInfo", {});
+        if (shop.name) $("shopName").value = shop.name;
+        if (shop.phone) $("shopPhone").value = shop.phone;
+        if (shop.address) $("shopAddress").value = shop.address;
+      }
+
+      function saveShop() {
+        safeWriteStorage("shopHeaderInfo", {
+          name: $("shopName").value.trim(),
+          phone: $("shopPhone").value.trim(),
+          address: $("shopAddress").value.trim()
+        });
+      }
+
+      function getSummary() {
+        var total = 0;
+        for (var i = 0; i < items.length; i++) {
+          total += items[i].amount;
+        }
+        total = Math.round(total * 100) / 100;
+        var paid = parseFloat($("paidAmount").value);
+        if (isNaN(paid) || paid < 0) paid = 0;
+        var due = Math.round((total - paid) * 100) / 100;
+        if (due < 0) due = 0;
+        return { total: total, paid: paid, due: due };
+      }
+
+      function renderBill() {
+        var tbody = $("itemsBody");
+        var html = "";
+        for (var i = 0; i < items.length; i++) {
+          var it = items[i];
+          html += "<tr>" +
+            "<td>" + (i + 1) + "</td>" +
+            "<td>" + it.name + "</td>" +
+            "<td>" + it.qty + " " + it.unit + "</td>" +
+            "<td class='num'>₹" + it.rate + "</td>" +
+            "<td class='num'>₹" + it.amount + "</td>" +
+            "<td class='no-print'><button type='button' class='btn-new del-item-btn' data-idx='" + i + "' style='padding:4px 8px;'>X</button></td>" +
+            "</tr>";
+        }
+        tbody.innerHTML = html;
+
+        var delBtns = tbody.querySelectorAll(".del-item-btn");
+        for (var j = 0; j < delBtns.length; j++) {
+          delBtns[j].addEventListener("click", function () {
+            var idx = parseInt(this.getAttribute("data-idx"), 10);
+            items.splice(idx, 1);
+            renderBill();
+          });
+        }
+
+        var s = getSummary();
+        $("totalAmount").innerText = s.total;
+        $("paidDisplay").innerText = s.paid;
+        $("dueAmount").innerText = s.due;
+      }
+
+      function addItem() {
+        var name = $("itemName").value.trim();
+        var qty = parseFloat($("itemQty").value);
+        var unit = $("itemUnit").value;
+        var rate = parseFloat($("itemRate").value);
+
+        if (!name || isNaN(qty) || qty <= 0 || isNaN(rate) || rate < 0) {
+          alert("कृपया आइटम का नाम, मात्रा और दर सही से भरें।");
+          return;
+        }
+
+        var amount = Math.round(qty * rate * 100) / 100;
+        items.push({ name: name, qty: qty, unit: unit, rate: rate, amount: amount });
+
+        $("itemName").value = "";
+        $("itemQty").value = "";
+        $("itemRate").value = "";
+        renderBill();
+      }
+
+      function buildBillText() {
+        var s = getSummary();
+        var lines = [];
+        var shopName = $("shopName").value.trim() || "डिजिटल बिल बुक";
+        var shopPhone = $("shopPhone").value.trim();
+        var shopAddress = $("shopAddress").value.trim();
+        var docType = $("docType").value;
+        var date = $("billDate").value;
+        var custName = $("custName").value.trim() || "ग्राहक";
+        var custPhone = $("custPhone").value.trim();
+        var custAddress = $("custAddress").value.trim();
+        var mode = $("paymentMode").value;
+
+        lines.push(shopName);
+        if (shopPhone) lines.push("मोबाइल: " + shopPhone);
+        if (shopAddress) lines.push("पता: " + shopAddress);
+        lines.push("----------------");
+        lines.push(docType + " | तारीख: " + date);
+        lines.push("ग्राहक: " + custName);
+        if (custPhone) lines.push("मोबाइल: " + custPhone);
+        if (custAddress) lines.push("पता: " + custAddress);
+        lines.push("----------------");
+
+        for (var i = 0; i < items.length; i++) {
+          var it = items[i];
+          lines.push((i + 1) + ". " + it.name + " (" + it.qty + " " + it.unit + " × ₹" + it.rate + ") = ₹" + it.amount);
+        }
+
+        lines.push("----------------");
+        lines.push("कुल योग: ₹" + s.total);
+        lines.push("उपयोग/जमा: ₹" + s.paid);
+        lines.push("बाकी राशि: ₹" + s.due);
+        lines.push("पेमेंट मोड: " + mode);
+        return lines.join("\n");
+      }
+
+      function sendWhatsApp() {
+        if (items.length === 0) {
+          alert("कृपया पहले कम से कम एक आइटम जोड़ें।");
+          return;
+        }
+        var rawPhone = $("custPhone").value.
