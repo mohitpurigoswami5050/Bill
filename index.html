@@ -341,7 +341,6 @@
       <button type="button" class="btn-calc" id="btnCalc">कैलकुलेटर (यूनिट कन्वर्टर व घड़ी हिसाब)</button>
     </div>
 
-    <!-- कैलकुलेटर, यूनिट कन्वर्टर और घड़ी समय हिसाब -->
     <div id="calcPanel" class="calc-panel no-print">
       <div class="calc-panel-header">
         <strong>कैलकुलेटर व यूनिट टूल्स (खुला है)</strong>
@@ -367,13 +366,12 @@
           <button type="button" class="op" data-val="2">2</button>
           <button type="button" class="op" data-val="3">3</button>
           <button type="button" class="op" data-val="+">+</button>
-          <button type="button" data-val="0">0</button>
-          <button type="button" data-val="00">00</button>
-          <button type="button" data-val=".">.</button>
+          <button type="button" class="op" data-val="0">0</button>
+          <button type="button" class="op" data-val="00">00</button>
+          <button type="button" class="op" data-val=".">.</button>
           <button type="button" class="eq" data-val="=">=</button>
         </div>
 
-        <!-- यूनिट कन्वर्टर सेक्शन -->
         <div class="sub-tool-box">
           <h4>यूनिट बदलें (लंबाई, वजन, लीटर, क्षेत्रफल, समय)</h4>
           <div class="row">
@@ -399,7 +397,6 @@
           </div>
         </div>
 
-        <!-- घड़ी / समय व रुपये गणना -->
         <div class="sub-tool-box">
           <h4>घड़ी / खेत समय व रुपये गणना</h4>
 
@@ -615,10 +612,11 @@
         var html = "";
         for (var i = 0; i < items.length; i++) {
           var it = items[i];
+          var qtyText = it.qtyLabel ? it.qtyLabel : (it.qty + " " + it.unit);
           html += "<tr>" +
             "<td>" + (i + 1) + "</td>" +
             "<td>" + it.name + "</td>" +
-            "<td>" + it.qty + " " + it.unit + "</td>" +
+            "<td>" + qtyText + "</td>" +
             "<td class='num'>₹" + it.rate + "</td>" +
             "<td class='num'>₹" + it.amount + "</td>" +
             "<td class='no-print'><button type='button' class='btn-new del-item-btn' data-idx='" + i + "' style='padding:4px 8px;'>X</button></td>" +
@@ -687,7 +685,8 @@
 
         for (var i = 0; i < items.length; i++) {
           var it = items[i];
-          lines.push((i + 1) + ". " + it.name + " (" + it.qty + " " + it.unit + " × ₹" + it.rate + ") = ₹" + it.amount);
+          var qtyText = it.qtyLabel ? it.qtyLabel : (it.qty + " " + it.unit);
+          lines.push((i + 1) + ". " + it.name + " (" + qtyText + " × ₹" + it.rate + ") = ₹" + it.amount);
         }
 
         lines.push("----------------");
@@ -894,19 +893,32 @@
         var hrs = Math.floor(totalMinutes / 60);
         var mins = Math.round((totalMinutes % 60) * 10) / 10;
         var decHrs = Math.round((totalMinutes / 60) * 100) / 100;
+        var exactDecHrs = totalMinutes / 60;
         var exactMins = Math.round(totalMinutes * 10) / 10;
         var rate = parseFloat($("timeRate").value);
         if (isNaN(rate) || rate < 0) rate = 0;
         var unit = $("timeRateUnit").value;
         var qty = unit === "मिनट" ? exactMins : decHrs;
-        var money = Math.round(qty * rate * 100) / 100;
-        return { hrs: hrs, mins: mins, decHrs: decHrs, exactMins: exactMins, rate: rate, unit: unit, qty: qty, money: money };
+        var calcQty = unit === "मिनट" ? exactMins : exactDecHrs;
+        var money = Math.round(calcQty * rate * 100) / 100;
+        var hrMinText = hrs + " घंटा " + mins + " मिनट";
+        return {
+          hrs: hrs,
+          mins: mins,
+          decHrs: decHrs,
+          exactMins: exactMins,
+          rate: rate,
+          unit: unit,
+          qty: qty,
+          money: money,
+          hrMinText: hrMinText
+        };
       }
 
       function updateTimeBox() {
         var info = getTimeInfo();
-        $("timeSummaryText").innerText = "कुल समय: " + info.hrs + " घंटा " + info.mins + " मिनट (" + info.decHrs + " घंटे)";
-        $("timeMoneyText").innerText = "अनुमानित राशि: ₹" + info.money + " (" + info.qty + " " + info.unit + " × ₹" + info.rate + ")";
+        $("timeSummaryText").innerText = "कुल समय: " + info.hrMinText + " (" + info.decHrs + " घंटे)";
+        $("timeMoneyText").innerText = "अनुमानित राशि: ₹" + info.money + " (" + info.hrMinText + " × ₹" + info.rate + ")";
       }
 
       function calcClockRange() {
@@ -1055,12 +1067,22 @@
 
       $("btnTimeToBill").addEventListener("click", function () {
         var info = getTimeInfo();
-        if (info.qty <= 0) {
+        if (totalMinutes <= 0) {
           alert("कृपया पहले घड़ी का समय या घंटे/मिनट जोड़ें।");
           return;
         }
         var work = $("timeWorkName").value.trim() || "खेत / ट्रैक्टर कार्य";
-        items.push({ name: work, qty: info.qty, unit: info.unit, rate: info.rate, amount: info.money });
+        var qtyLabel = info.unit === "मिनट"
+          ? (info.exactMins + " मिनट")
+          : (info.hrMinText + " (" + info.decHrs + " घंटा)");
+        items.push({
+          name: work,
+          qty: info.qty,
+          unit: info.unit,
+          qtyLabel: qtyLabel,
+          rate: info.rate,
+          amount: info.money
+        });
         renderBill();
       });
 
@@ -1080,3 +1102,4 @@
   </script>
 </body>
 </html>
+
